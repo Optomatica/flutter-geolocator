@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 
 import 'package:baseflow_plugin_template/baseflow_plugin_template.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator_android/geolocator_android.dart';
 import 'package:geolocator_platform_interface/geolocator_platform_interface.dart';
 
 /// Defines the main theme color.
@@ -73,11 +74,10 @@ class _GeolocatorWidgetState extends State<GeolocatorWidget> {
         }
       },
       itemBuilder: (context) => [
-        if (Platform.isIOS)
-          const PopupMenuItem(
-            child: Text("Get Location Accuracy"),
-            value: 1,
-          ),
+        const PopupMenuItem(
+          child: Text("Get Location Accuracy"),
+          value: 1,
+        ),
         if (Platform.isIOS)
           const PopupMenuItem(
             child: Text("Request Temporary Full Accuracy"),
@@ -282,16 +282,42 @@ class _GeolocatorWidgetState extends State<GeolocatorWidget> {
     }
   }
 
-  void _toggleListening() {
+  Future<void> _toggleListening() async {
+    final hasPermission = await _handlePermission();
+
+    if (!hasPermission) {
+      return;
+    }
+
     if (_positionStreamSubscription == null) {
-      final positionStream = geolocatorAndroid.getPositionStream();
+      final androidSettings = AndroidSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 10,
+        intervalDuration: const Duration(seconds: 1),
+        forceLocationManager: false,
+        useMSLAltitude: true,
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationText:
+              "Example app will continue to receive your location even when you aren't using it",
+          //Explain to the user why we are showing this notification
+          notificationTitle: "Running in Background",
+          //Tell the user what we are doing
+          enableWakeLock:
+              false, //Keep the system awake to receive background location information.
+        ),
+      );
+      final positionStream = geolocatorAndroid.getPositionStream(
+          locationSettings: androidSettings);
       _positionStreamSubscription = positionStream.handleError((error) {
         _positionStreamSubscription?.cancel();
         _positionStreamSubscription = null;
-      }).listen((position) => _updatePositionList(
-            _PositionItemType.position,
-            position.toString(),
-          ));
+      }).listen((position) {
+        debugPrint(position.altitude.toString());
+        _updatePositionList(
+          _PositionItemType.position,
+          position.toString(),
+        );
+      });
       _positionStreamSubscription?.pause();
     }
 

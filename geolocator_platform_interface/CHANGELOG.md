@@ -1,3 +1,47 @@
+## 4.0.6
+
+- Migrates to Dart SDK 2.15.0 and Flutter 2.8.0.
+
+## 4.0.5
+
+- Fixes repository URL of the package.
+
+## 4.0.4
+
+- Fixes a bug where listening to the position stream immediately after an error, results in listening to a dead stream. 
+
+## 4.0.3
+
+- Removes `timeInterval` from `LocationSettings` documentation.
+
+## 4.0.2
+
+- Added `extensions.dart` to the `exports` list.
+
+## 4.0.1
+
+- Adds the `LocationPermission.unableToDetermine` status used on the web platform when the permission API is not implemented by the browser.
+
+## 4.0.0
+
+- **breaking** Updates the plugin platform interface to use a non`-const` token. This is marked as a breaking change because it can cause an assertion failure if implementations use `implements` rather than `extends`, but hopefully there aren't any of those;
+- Replaced soft-deprecated `PlatformInterface.verifyToken` method with `PlatformInterface.verify` method;
+- Updated `plugin_platform_interface` dependency.
+
+
+## 3.0.1
+
+- Remove unnecessary import statements from several source files;
+- Fix "forceAndroidLocationManager" for getLastKnownPosition.
+
+## 3.0.0+1
+
+- Removed Android specific `LocationSettings.intervalDuration` field.
+
+## 3.0.0
+
+- Defines the `LocationSettings` class which bundles platform specific settings when communicating with the host platform.
+
 ## 2.3.6
 
 - Updated API documentation on `GeolocatorPlatform.getServiceStream()` method, describing it is not supported on the web platform.

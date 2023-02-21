@@ -48,13 +48,6 @@ class GeolocatorPlugin extends GeolocatorPlatform {
 
   @override
   Future<LocationPermission> checkPermission() async {
-    if (!_permissions.permissionsSupported) {
-      throw PlatformException(
-        code: 'LOCATION_SERVICES_NOT_SUPPORTED',
-        message: 'Location services are not supported on this browser.',
-      );
-    }
-
     return await _permissions.query(
       _permissionQuery,
     );
@@ -72,19 +65,17 @@ class GeolocatorPlugin extends GeolocatorPlatform {
 
   @override
   Future<Position> getLastKnownPosition({
-    bool forceAndroidLocationManager = false,
+    bool forceLocationManager = false,
   }) =>
       throw _unsupported('getLastKnownPosition');
 
   @override
   Future<Position> getCurrentPosition({
-    LocationAccuracy desiredAccuracy = LocationAccuracy.best,
-    bool forceAndroidLocationManager = false,
-    Duration? timeLimit,
+    LocationSettings? locationSettings,
   }) async {
     final result = await _geolocation.getCurrentPosition(
-      enableHighAccuracy: _enableHighAccuracy(desiredAccuracy),
-      timeout: timeLimit,
+      enableHighAccuracy: _enableHighAccuracy(locationSettings?.accuracy),
+      timeout: locationSettings?.timeLimit,
     );
 
     return result;
@@ -92,21 +83,18 @@ class GeolocatorPlugin extends GeolocatorPlatform {
 
   @override
   Stream<Position> getPositionStream({
-    LocationAccuracy desiredAccuracy = LocationAccuracy.best,
-    int distanceFilter = 0,
-    bool forceAndroidLocationManager = false,
-    int timeInterval = 0,
-    Duration? timeLimit,
+    LocationSettings? locationSettings,
   }) {
     Position? previousPosition;
 
     return _geolocation
         .watchPosition(
-      enableHighAccuracy: _enableHighAccuracy(desiredAccuracy),
-      timeout: timeLimit,
+      enableHighAccuracy: _enableHighAccuracy(locationSettings?.accuracy),
+      timeout: locationSettings?.timeLimit,
     )
         .skipWhile((geoposition) {
-      if (distanceFilter == 0) {
+      if (locationSettings?.distanceFilter == 0 ||
+          locationSettings?.distanceFilter == null) {
         return false;
       }
 
@@ -123,7 +111,7 @@ class GeolocatorPlugin extends GeolocatorPlatform {
       }
 
       previousPosition = geoposition;
-      return distance < distanceFilter;
+      return distance < locationSettings!.distanceFilter;
     });
   }
 
@@ -134,7 +122,10 @@ class GeolocatorPlugin extends GeolocatorPlatform {
   Future<bool> openLocationSettings() =>
       throw _unsupported('openLocationSettings');
 
-  bool _enableHighAccuracy(LocationAccuracy accuracy) {
+  bool _enableHighAccuracy(LocationAccuracy? accuracy) {
+    if (accuracy == null) {
+      return false;
+    }
     switch (accuracy) {
       case LocationAccuracy.lowest:
       case LocationAccuracy.low:

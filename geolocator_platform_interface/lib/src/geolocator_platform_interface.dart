@@ -4,7 +4,6 @@ import 'dart:math';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:vector_math/vector_math.dart';
 
-import '../geolocator_platform_interface.dart';
 import 'enums/enums.dart';
 import 'implementations/method_channel_geolocator.dart';
 import 'models/models.dart';
@@ -21,7 +20,7 @@ abstract class GeolocatorPlatform extends PlatformInterface {
   /// Constructs a GeolocatorPlatform.
   GeolocatorPlatform() : super(token: _token);
 
-  static const Object _token = Object();
+  static final Object _token = Object();
 
   static GeolocatorPlatform _instance = MethodChannelGeolocator();
 
@@ -34,12 +33,16 @@ abstract class GeolocatorPlatform extends PlatformInterface {
   /// platform-specific class that extends [GeolocatorPlatform] when they
   /// register themselves.
   static set instance(GeolocatorPlatform instance) {
-    PlatformInterface.verifyToken(instance, _token);
+    PlatformInterface.verify(instance, _token);
     _instance = instance;
   }
 
   /// Returns a [Future] indicating if the user allows the App to access
   /// the device's location.
+  ///
+  /// Note: on the web platform not all browsers implement the [Permission API](https://developer.mozilla.org/en-US/docs/Web/API/Permissions_API)
+  /// if this is the case the `LocationPermission.unableToDetermine` is returned
+  /// as the plugin cannot determine the if permissions are granted or denied.
   Future<LocationPermission> checkPermission() {
     throw UnimplementedError(
       'checkPermission() has not been implemented.',
@@ -71,13 +74,13 @@ abstract class GeolocatorPlatform extends PlatformInterface {
   ///
   /// On Android you can force the plugin to use the old Android
   /// LocationManager implementation over the newer FusedLocationProvider by
-  /// passing true to the [forceAndroidLocationManager] parameter. On iOS
+  /// passing true to the [forceLocationManager] parameter. On iOS
   /// this parameter is ignored.
   /// When no position is available, null is returned.
   /// Throws a [PermissionDeniedException] when trying to request the device's
   /// location when the user denied access.
   Future<Position?> getLastKnownPosition({
-    bool forceAndroidLocationManager = false,
+    bool forceLocationManager = false,
   }) {
     throw UnimplementedError(
       'getLastKnownPosition() has not been implemented.',
@@ -94,9 +97,10 @@ abstract class GeolocatorPlatform extends PlatformInterface {
   /// update it with the result of the `getCurrentPosition` method.
   ///
   /// On Android you can force the use of the Android LocationManager instead of
-  /// the FusedLocationProvider by setting the [forceAndroidLocationManager]
-  /// parameter to true. The [timeLimit] parameter allows you to specify a
-  /// timeout interval (by default no time limit is configured).
+  /// the FusedLocationProvider by setting the [forceLocationManager]
+  /// parameter of [LocationSettings] to true. The [timeLimit] parameter of
+  /// [LocationSettings] allows you to specify a timeout interval (by default no
+  /// time limit is configured).
   ///
   /// Throws a [TimeoutException] when no location is received within the
   /// supplied [timeLimit] duration.
@@ -105,9 +109,7 @@ abstract class GeolocatorPlatform extends PlatformInterface {
   /// Throws a [LocationServiceDisabledException] when the user allowed access,
   /// but the location services of the device are disabled.
   Future<Position> getCurrentPosition({
-    LocationAccuracy desiredAccuracy = LocationAccuracy.best,
-    bool forceAndroidLocationManager = false,
-    Duration? timeLimit,
+    LocationSettings? locationSettings,
   }) {
     throw UnimplementedError('getCurrentPosition() has not been implemented.');
   }
@@ -145,24 +147,17 @@ abstract class GeolocatorPlatform extends PlatformInterface {
   /// parameter controls the minimum distance the device needs to move before
   /// the update is emitted (default value is 0 indicator no filter is used).
   /// On Android you can force the use of the Android LocationManager instead
-  /// of the FusedLocationProvider by setting the [forceAndroidLocationManager]
-  /// parameter to true. Using the [timeInterval] you can control the amount of
-  /// time that needs to pass before the next position update is send. The
-  /// [timeLimit] parameter allows you to specify a timeout interval (by
-  /// default no time limit is configured).
+  /// of the FusedLocationProvider by setting the [forceLocationManager]
+  /// parameter of [LocationSettings] to true. Using the [timeInterval]
+  /// of [LocationSettings] you can control the amount of time that needs to
+  /// pass before the next position update is send.
   ///
-  /// Throws a [TimeoutException] when no location is received within the
-  /// supplied [timeLimit] duration.
   /// Throws a [PermissionDeniedException] when trying to request the device's
   /// location when the user denied access.
   /// Throws a [LocationServiceDisabledException] when the user allowed access,
   /// but the location services of the device are disabled.
   Stream<Position> getPositionStream({
-    LocationAccuracy desiredAccuracy = LocationAccuracy.best,
-    int distanceFilter = 0,
-    bool forceAndroidLocationManager = false,
-    int timeInterval = 0,
-    Duration? timeLimit,
+    LocationSettings? locationSettings,
   }) {
     throw UnimplementedError('getPositionStream() has not been implemented.');
   }

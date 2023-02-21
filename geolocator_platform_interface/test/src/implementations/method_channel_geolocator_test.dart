@@ -4,7 +4,6 @@ import 'package:async/async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator_platform_interface/geolocator_platform_interface.dart';
-import 'package:geolocator_platform_interface/src/enums/location_service.dart';
 import 'package:geolocator_platform_interface/src/implementations/method_channel_geolocator.dart';
 
 import 'event_channel_mock.dart';
@@ -465,12 +464,12 @@ void main() {
         );
 
         final expectedArguments = <String, dynamic>{
-          "forceAndroidLocationManager": false,
+          "forceLocationManager": false,
         };
 
         // Act
         final position = await MethodChannelGeolocator().getLastKnownPosition(
-          forceAndroidLocationManager: false,
+          forceLocationManager: false,
         );
 
         // Arrange
@@ -497,7 +496,7 @@ void main() {
 
         // Act
         final future = MethodChannelGeolocator().getLastKnownPosition(
-          forceAndroidLocationManager: false,
+          forceLocationManager: false,
         );
 
         // Assert
@@ -521,14 +520,13 @@ void main() {
             channelName: 'flutter.baseflow.com/geolocator',
             method: 'getCurrentPosition',
             result: mockPosition.toJson());
-        const expectedArguments = LocationOptions(
-          accuracy: LocationAccuracy.low,
-        );
+        const expectedArguments =
+            LocationSettings(accuracy: LocationAccuracy.low);
 
         // Act
         final position = await MethodChannelGeolocator().getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.low,
-        );
+            locationSettings:
+                const LocationSettings(accuracy: LocationAccuracy.low));
 
         // Assert
         expect(position, mockPosition);
@@ -547,25 +545,23 @@ void main() {
           method: 'getCurrentPosition',
           result: mockPosition.toJson(),
         );
-        const expectedFirstArguments = LocationOptions(
+        const expectedFirstArguments = LocationSettings(
           accuracy: LocationAccuracy.low,
-          forceAndroidLocationManager: false,
         );
-        const expectedSecondArguments = LocationOptions(
+        const expectedSecondArguments = LocationSettings(
           accuracy: LocationAccuracy.high,
-          forceAndroidLocationManager: true,
         );
 
         // Act
         final methodChannelGeolocator = MethodChannelGeolocator();
         final firstPosition = await methodChannelGeolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.low,
-          forceAndroidLocationManager: false,
-        );
+            locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.low,
+        ));
         final secondPosition = await methodChannelGeolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-          forceAndroidLocationManager: true,
-        );
+            locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ));
 
         // Assert
         expect(firstPosition, mockPosition);
@@ -648,9 +644,9 @@ void main() {
 
         try {
           await MethodChannelGeolocator().getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.low,
-            forceAndroidLocationManager: true,
-            timeLimit: const Duration(milliseconds: 5),
+            locationSettings: const LocationSettings(
+              timeLimit: Duration(milliseconds: 5),
+            ),
           );
 
           fail('Expected a TimeoutException and should not reach here.');
@@ -782,6 +778,48 @@ void main() {
         // Assert
         expect(await streamQueue.next, mockPosition);
         expect(await streamQueue.next, mockPosition);
+        expect(await streamQueue.next, mockPosition);
+
+        // Clean up
+        await streamQueue.cancel();
+        await streamController.close();
+      });
+
+      test(
+          // ignore: lines_longer_than_80_chars
+          'Should continue listening to the stream when exception is thrown ',
+          () async {
+        // Arrange
+        final streamController =
+            StreamController<Map<String, dynamic>>.broadcast();
+        EventChannelMock(
+          channelName: 'flutter.baseflow.com/geolocator_updates',
+          stream: streamController.stream,
+        );
+
+        // Act
+        final positionStream = MethodChannelGeolocator().getPositionStream();
+        final streamQueue = StreamQueue(positionStream);
+
+        // Emit test events
+        streamController.add(mockPosition.toJson());
+        streamController.addError(PlatformException(
+            code: 'PERMISSION_DENIED',
+            message: 'Permission denied',
+            details: null));
+        streamController.add(mockPosition.toJson());
+
+        // Assert
+        expect(await streamQueue.next, mockPosition);
+        expect(
+            streamQueue.next,
+            throwsA(
+              isA<PermissionDeniedException>().having(
+                (e) => e.message,
+                'message',
+                'Permission denied',
+              ),
+            ));
         expect(await streamQueue.next, mockPosition);
 
         // Clean up
@@ -968,15 +1006,18 @@ void main() {
           channelName: 'flutter.baseflow.com/geolocator_updates',
           stream: streamController.stream,
         );
-        const expectedArguments = LocationOptions(
+        const expectedArguments = LocationSettings(
           accuracy: LocationAccuracy.low,
           distanceFilter: 0,
         );
 
         // Act
         final positionStream = MethodChannelGeolocator().getPositionStream(
-            desiredAccuracy: expectedArguments.accuracy,
-            timeLimit: const Duration(milliseconds: 5));
+          locationSettings: LocationSettings(
+            accuracy: expectedArguments.accuracy,
+            timeLimit: const Duration(milliseconds: 5),
+          ),
+        );
         final streamQueue = StreamQueue(positionStream);
 
         streamController.add(mockPosition.toJson());
@@ -986,6 +1027,52 @@ void main() {
         // Assert
         expect(await streamQueue.next, mockPosition);
         expect(streamQueue.next, throwsA(isA<TimeoutException>()));
+      });
+
+      test('Should cleanup the previous stream on timeout exception', () async {
+        // Arrange
+        final streamController = StreamController<Map<String, dynamic>>();
+        final retryController = StreamController<Map<String, dynamic>>();
+        late Stream<Position> retryStream;
+
+        EventChannelMock(
+          channelName: 'flutter.baseflow.com/geolocator_updates',
+          stream: streamController.stream,
+        );
+        const locationSettings = LocationSettings(
+          accuracy: LocationAccuracy.low,
+          timeLimit: Duration(milliseconds: 5),
+        );
+
+        final geolocator = MethodChannelGeolocator();
+
+        // Act
+        final positionStream = geolocator.getPositionStream(
+          locationSettings: locationSettings,
+        );
+
+        final subscription = positionStream.listen((event) {});
+
+        // Listen for position changes again on timeout
+        subscription.onError((err) {
+          EventChannelMock(
+            channelName: 'flutter.baseflow.com/geolocator_updates',
+            stream: retryController.stream,
+          );
+          retryStream = geolocator.getPositionStream(
+            locationSettings: locationSettings,
+          );
+        });
+
+        await Future.delayed(const Duration(milliseconds: 5));
+
+        final streamQueue = StreamQueue(retryStream);
+        retryController.add(mockPosition.toJson());
+
+        // Assert
+
+        // If previous stream is not properly cleaned up this will have no elements
+        expect(await streamQueue.next, mockPosition);
       });
     });
 

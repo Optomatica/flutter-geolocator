@@ -16,17 +16,16 @@ import androidx.annotation.Nullable;
 
 import com.baseflow.geolocator.errors.ErrorCallback;
 import com.baseflow.geolocator.errors.ErrorCodes;
-import com.google.android.gms.common.util.Strings;
 
 import java.util.List;
 
 class LocationManagerClient implements LocationClient, LocationListener {
 
   private static final long TWO_MINUTES = 120000;
-  public Context context;
   private final LocationManager locationManager;
+  private final NmeaClient nmeaClient;
   @Nullable private final LocationOptions locationOptions;
-
+  public Context context;
   private boolean isListening = false;
 
   @Nullable private Location currentBestLocation;
@@ -39,6 +38,95 @@ class LocationManagerClient implements LocationClient, LocationListener {
     this.locationManager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
     this.locationOptions = locationOptions;
     this.context = context;
+    this.nmeaClient = new NmeaClient(context, locationOptions);
+  }
+
+  static boolean isBetterLocation(Location location, Location bestLocation) {
+    if (bestLocation == null) return true;
+
+    long timeDelta = location.getTime() - bestLocation.getTime();
+    boolean isSignificantlyNewer = timeDelta > TWO_MINUTES;
+    boolean isSignificantlyOlder = timeDelta < -TWO_MINUTES;
+    boolean isNewer = timeDelta > 0;
+
+    if (isSignificantlyNewer) return true;
+
+    if (isSignificantlyOlder) return false;
+
+    float accuracyDelta = (int) (location.getAccuracy() - bestLocation.getAccuracy());
+    boolean isLessAccurate = accuracyDelta > 0;
+    boolean isMoreAccurate = accuracyDelta < 0;
+    boolean isSignificantlyLessAccurate = accuracyDelta > 200;
+
+    boolean isFromSameProvider = false;
+    if (location.getProvider() != null) {
+      isFromSameProvider = location.getProvider().equals(bestLocation.getProvider());
+    }
+
+    if (isMoreAccurate) return true;
+
+    if (isNewer && !isLessAccurate) return true;
+
+    //noinspection RedundantIfStatement
+    if (isNewer && !isSignificantlyLessAccurate && isFromSameProvider) return true;
+
+    return false;
+  }
+
+  private static String getBestProvider(
+      LocationManager locationManager, LocationAccuracy accuracy) {
+    Criteria criteria = new Criteria();
+
+    criteria.setBearingRequired(false);
+    criteria.setAltitudeRequired(false);
+    criteria.setSpeedRequired(false);
+
+    switch (accuracy) {
+      case lowest:
+        criteria.setAccuracy(Criteria.NO_REQUIREMENT);
+        criteria.setHorizontalAccuracy(Criteria.NO_REQUIREMENT);
+        criteria.setPowerRequirement(Criteria.NO_REQUIREMENT);
+        break;
+      case low:
+        criteria.setAccuracy(Criteria.ACCURACY_COARSE);
+        criteria.setHorizontalAccuracy(Criteria.ACCURACY_LOW);
+        criteria.setPowerRequirement(Criteria.NO_REQUIREMENT);
+        break;
+      case medium:
+        criteria.setAccuracy(Criteria.ACCURACY_COARSE);
+        criteria.setHorizontalAccuracy(Criteria.ACCURACY_MEDIUM);
+        criteria.setPowerRequirement(Criteria.POWER_MEDIUM);
+        break;
+      default:
+        criteria.setAccuracy(Criteria.ACCURACY_FINE);
+        criteria.setHorizontalAccuracy(Criteria.ACCURACY_HIGH);
+        criteria.setPowerRequirement(Criteria.POWER_HIGH);
+        break;
+    }
+
+    String provider = locationManager.getBestProvider(criteria, true);
+
+    if (provider.trim().isEmpty()) {
+      List<String> providers = locationManager.getProviders(true);
+      if (providers.size() > 0) provider = providers.get(0);
+    }
+
+    return provider;
+  }
+
+  private static float accuracyToFloat(LocationAccuracy accuracy) {
+    switch (accuracy) {
+      case lowest:
+      case low:
+        return 500;
+      case medium:
+        return 250;
+      case best:
+      case bestForNavigation:
+        return 50;
+      default:
+        return 100;
+    }
   }
 
   @Override
@@ -93,7 +181,7 @@ class LocationManagerClient implements LocationClient, LocationListener {
 
     this.currentLocationProvider = "gps";
 
-    if (Strings.isEmptyOrWhitespace(this.currentLocationProvider)) {
+    if (this.currentLocationProvider.trim().isEmpty()) {
       errorCallback.onError(ErrorCodes.locationServicesDisabled);
       return;
     }
@@ -106,6 +194,7 @@ class LocationManagerClient implements LocationClient, LocationListener {
     }
 
     this.isListening = true;
+    this.nmeaClient.start();
     this.locationManager.requestLocationUpdates(
         this.currentLocationProvider, timeInterval, distanceFilter, this, Looper.getMainLooper());
   }
@@ -114,6 +203,7 @@ class LocationManagerClient implements LocationClient, LocationListener {
   @Override
   public void stopPositionUpdates() {
     this.isListening = false;
+    this.nmeaClient.stop();
     this.locationManager.removeUpdates(this);
   }
 
@@ -127,6 +217,7 @@ class LocationManagerClient implements LocationClient, LocationListener {
       this.currentBestLocation = location;
 
       if (this.positionChangedCallback != null) {
+        nmeaClient.enrichExtrasWithNmea(location);
         this.positionChangedCallback.onPositionChanged(currentBestLocation);
       }
     }
@@ -159,53 +250,6 @@ class LocationManagerClient implements LocationClient, LocationListener {
       }
 
       this.currentLocationProvider = null;
-    }
-  }
-
-  static boolean isBetterLocation(Location location, Location bestLocation) {
-    if (bestLocation == null) return true;
-
-    long timeDelta = location.getTime() - bestLocation.getTime();
-    boolean isSignificantlyNewer = timeDelta > TWO_MINUTES;
-    boolean isSignificantlyOlder = timeDelta < -TWO_MINUTES;
-    boolean isNewer = timeDelta > 0;
-
-    if (isSignificantlyNewer) return true;
-
-    if (isSignificantlyOlder) return false;
-
-    float accuracyDelta = (int) (location.getAccuracy() - bestLocation.getAccuracy());
-    boolean isLessAccurate = accuracyDelta > 0;
-    boolean isMoreAccurate = accuracyDelta < 0;
-    boolean isSignificantlyLessAccurate = accuracyDelta > 200;
-
-    boolean isFromSameProvider = false;
-    if (location.getProvider() != null) {
-      isFromSameProvider = location.getProvider().equals(bestLocation.getProvider());
-    }
-
-    if (isMoreAccurate) return true;
-
-    if (isNewer && !isLessAccurate) return true;
-
-    //noinspection RedundantIfStatement
-    if (isNewer && !isSignificantlyLessAccurate && isFromSameProvider) return true;
-
-    return false;
-  }
-
-  private static float accuracyToFloat(LocationAccuracy accuracy) {
-    switch (accuracy) {
-      case lowest:
-      case low:
-        return 500;
-      case medium:
-        return 250;
-      case best:
-      case bestForNavigation:
-        return 50;
-      default:
-        return 100;
     }
   }
 }

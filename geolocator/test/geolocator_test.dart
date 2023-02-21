@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:mockito/mockito.dart';
@@ -53,6 +54,13 @@ void main() {
       expect(position, mockPosition);
     });
 
+    test('getCurrentPosition iOS', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      final position = await Geolocator.getCurrentPosition();
+      expect(position, mockPosition);
+      debugDefaultTargetPlatformOverride = null;
+    });
+
     test('getLocationAccuracy', () async {
       final accuracy = await Geolocator.getLocationAccuracy();
 
@@ -79,59 +87,14 @@ void main() {
 
     test('getPositionStream', () {
       when(GeolocatorPlatform.instance.getPositionStream(
-        desiredAccuracy: LocationAccuracy.best,
-        forceAndroidLocationManager: false,
-        timeInterval: 0,
+          locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.best,
         timeLimit: null,
-      )).thenAnswer((_) => Stream.value(mockPosition));
+      ))).thenAnswer((_) => Stream.value(mockPosition));
 
       final position = Geolocator.getPositionStream();
 
       expect(position, emitsInOrder([emits(mockPosition), emitsDone]));
-    });
-
-    test('getPositionStream: time interval should be set to zero if left null.',
-        () {
-      when(GeolocatorPlatform.instance.getPositionStream(
-        desiredAccuracy: LocationAccuracy.best,
-        forceAndroidLocationManager: false,
-        timeInterval: 0,
-        timeLimit: null,
-      )).thenAnswer((_) => Stream.value(mockPosition));
-
-      Geolocator.getPositionStream(intervalDuration: null);
-
-      verify(GeolocatorPlatform.instance.getPositionStream(
-        desiredAccuracy: LocationAccuracy.best,
-        distanceFilter: 0,
-        forceAndroidLocationManager: false,
-        timeInterval: 0,
-        timeLimit: null,
-      ));
-    });
-
-    test(
-        // ignore: lines_longer_than_80_chars
-        'getPositionStream: time interval duration should be set to milliseconds.',
-        () {
-      when(GeolocatorPlatform.instance.getPositionStream(
-        desiredAccuracy: LocationAccuracy.best,
-        forceAndroidLocationManager: false,
-        timeInterval: 10000,
-        timeLimit: null,
-      )).thenAnswer((_) => Stream.value(mockPosition));
-
-      Geolocator.getPositionStream(
-        intervalDuration: const Duration(seconds: 10),
-      );
-
-      verify(GeolocatorPlatform.instance.getPositionStream(
-        desiredAccuracy: LocationAccuracy.best,
-        distanceFilter: 0,
-        forceAndroidLocationManager: false,
-        timeInterval: 10000,
-        timeLimit: null,
-      ));
     });
 
     test('openAppSettings', () async {
@@ -175,15 +138,13 @@ class MockGeolocatorPlatform extends Mock
 
   @override
   Future<Position> getLastKnownPosition({
-    bool forceAndroidLocationManager = false,
+    bool forceLocationManager = false,
   }) =>
       Future.value(mockPosition);
 
   @override
   Future<Position> getCurrentPosition({
-    LocationAccuracy desiredAccuracy = LocationAccuracy.best,
-    bool forceAndroidLocationManager = false,
-    Duration? timeLimit,
+    LocationSettings? locationSettings,
   }) =>
       Future.value(mockPosition);
 
@@ -200,22 +161,16 @@ class MockGeolocatorPlatform extends Mock
 
   @override
   Stream<Position> getPositionStream({
-    LocationAccuracy? desiredAccuracy = LocationAccuracy.best,
-    int? distanceFilter = 0,
-    bool? forceAndroidLocationManager = false,
-    int? timeInterval = 0,
-    Duration? timeLimit,
+    LocationSettings? locationSettings,
   }) {
     return super.noSuchMethod(
       Invocation.method(
         #getPositionStream,
         null,
         <Symbol, Object?>{
-          #desiredAccuracy: desiredAccuracy,
-          #distanceFilter: distanceFilter,
-          #forceAndroidLocationManager: forceAndroidLocationManager,
-          #timeInterval: timeInterval,
-          #timeLimit: timeLimit,
+          #desiredAccuracy: locationSettings?.accuracy ?? LocationAccuracy.best,
+          #distanceFilter: locationSettings?.distanceFilter ?? 0,
+          #timeLimit: locationSettings?.timeLimit ?? 0,
         },
       ),
       returnValue: Stream.value(mockPosition),

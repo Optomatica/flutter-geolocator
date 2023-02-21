@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 
 import 'package:baseflow_plugin_template/baseflow_plugin_template.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator_apple/geolocator_apple.dart';
 import 'package:geolocator_platform_interface/geolocator_platform_interface.dart';
 
 /// Defines the main theme color.
@@ -282,12 +283,28 @@ class _GeolocatorWidgetState extends State<GeolocatorWidget> {
     }
   }
 
-  void _toggleListening() {
+  Future<void> _toggleListening() async {
+    final hasPermission = await _handlePermission();
+
+    if (!hasPermission) {
+      return;
+    }
+
+    Exception? error;
+
     if (_positionStreamSubscription == null) {
-      final positionStream = geolocatorApple.getPositionStream();
-      _positionStreamSubscription = positionStream.handleError((error) {
+      final Stream<Position> positionStream = geolocatorApple.getPositionStream(
+          locationSettings: AppleSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 10,
+        activityType: ActivityType.other,
+        // Only set to true if our app will be started up in the background.
+        showBackgroundLocationIndicator: false,
+      ));
+      _positionStreamSubscription = positionStream.handleError((e) {
         _positionStreamSubscription?.cancel();
         _positionStreamSubscription = null;
+        error = e;
       }).listen((position) => _updatePositionList(
             _PositionItemType.position,
             position.toString(),
@@ -297,6 +314,11 @@ class _GeolocatorWidgetState extends State<GeolocatorWidget> {
 
     setState(() {
       if (_positionStreamSubscription == null) {
+        return;
+      }
+
+      if (error != null) {
+        _updatePositionList(_PositionItemType.log, error.toString());
         return;
       }
 

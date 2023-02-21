@@ -1,3 +1,69 @@
+## 9.0.2
+
+- Updated dependency on geolocator_android to version 4.1.3
+- Export `AndroidResource` class at `geolocator/lib/geolocator.dart.at`.
+
+## 9.0.1
+
+- Migrates to Dart SDK 2.15.0 and Flutter 2.8.0.
+
+## 9.0.0
+
+> **IMPORTANT:** when updating to version 9.0.0 make sure to also set the `compileSdkVersion` in the `android/app/build.gradle` file to `33`.
+
+- Updated dependency on geolocator_android to version 4.0.0;
+- Make sure the Android example app compiles against Android SDK 33.
+
+## 8.2.1
+
+- Fixes repository URL of the package.
+
+## 8.2.0
+
+- Adds support to make a foreground service on Android and continue processing location updates when the application is moved into the background.
+- Ensures that the `getCurrentPosition` takes the supplied accuracy into account.
+- Improves the speed of acquiring the current position on iOS.
+- Added additional option to `AppleSettings` class to allow the user to configure the background location indicator of `CLocationManager`.
+
+## 8.1.1
+
+- Updated README.md to clarify the use of the geolocator_web package.
+
+## 8.1.0
+
+- Endorses the geolocator_windows package.
+
+## 8.0.5
+
+- Fix code coverage issues by adding iOS specific test for getCurrentPosition
+
+## 8.0.4
+
+- Export `ActivityType` at `geolocator.dart`
+
+## 8.0.3
+
+- Upgraded the geolocator_platform_interface, geolocator_web, geolocator_apple and geolocator_android packages to the latest versions.
+
+## 8.0.2
+
+- Updated README.md to clarify the use of platform specific packages.
+
+## 8.0.1
+
+- Fix "forceAndroidLocationManager" for getLastKnownPosition 
+- Upgrade geolocator_platform_interface to 3.0.1
+- Upgrade geolocator_web to 2.1.1
+
+## 8.0.0
+
+- Removed implicit request for permissions when getting a position.
+- Updated README.md to clarify the use of the `Geolocator.checkPermission()` method.
+
+## 7.7.1
+
+* Update the documentation on permissions in the README.md.
+
 ## 7.7.0
 
 > **IMPORTANT:** when updating to version 7.7.0 make sure to also set the compileSdkVersion in the android/app/build.gradle file to 31.
@@ -469,4 +535,3 @@ Complete rebuild of the geolocator plugin. Please note the this version contains
 ## 0.0.1
 
 - Initial release
-

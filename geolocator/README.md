@@ -42,11 +42,11 @@ The TL;DR version is:
 android.useAndroidX=true
 android.enableJetifier=true
 ```
-2. Make sure you set the `compileSdkVersion` in your "android/app/build.gradle" file to 30:
+2. Make sure you set the `compileSdkVersion` in your "android/app/build.gradle" file to 33:
 
 ```
 android {
-  compileSdkVersion 30
+  compileSdkVersion 33
 
   ...
 }
@@ -62,7 +62,7 @@ On Android you'll need to add either the `ACCESS_COARSE_LOCATION` or the `ACCESS
 <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 ```
 
-Starting from Android 10 you need to add the `ACCESS_BACKGROUND_LOCATION` permission (next to the `ACCESS_COARSE_LOCATION` or the `ACCESS_FINE_LOCATION` permission) if you want to continue receiving updates even when your App is running in the background (note that the geolocator plugin doesn't support receiving an processing location updates while running in the background):
+Starting from Android 10 you need to add the `ACCESS_BACKGROUND_LOCATION` permission (next to the `ACCESS_COARSE_LOCATION` or the `ACCESS_FINE_LOCATION` permission) if you want to continue receiving updates even when your App is running in the background (note that the geolocator plugin doesn't support receiving and processing location updates while running in the background):
 
 ``` xml
 <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
@@ -140,11 +140,16 @@ The following methods of the geolocator API are not supported on the web and wil
 - `openAppSettings()`
 - `openLocationSettings()`
 
-> NOTE: due to a [bug](https://github.com/dart-lang/sdk/issues/45562) in the dart:html library the web version of the Geolocator plugin does not work with sound null safety enabled and compiled in release mode. Running the App in release mode with sound null safety enabled results in a `Uncaught TypeError` (see issue #693). The current workaround would be to build your App with sound null safety disabled in release mode:
->```shell
->flutter build web --no-sound-null-safety --release
->```
-> The Dart team already implemented a [fix](https://github.com/dart-lang/sdk/commit/7abaa9549223d62602f18aa7abc3ca9aa5884939) (currently available in Dart version 2.15.0-63.0.dev), however it has yet to be released and integrated in Flutter.
+**NOTE**
+
+Geolocator Web is available only in [secure_contexts](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts) (HTTPS). More info about the Geolocator API can be found [here](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation_API).
+
+</details>
+
+<details>
+<summary>Windows</summary>
+
+To use the Geolocator plugin on Windows you need to be using Flutter 2.10 or higher. Flutter will automatically add the endorsed [geolocator_windows]() package to your application when you add the `geolocator: ^8.1.0` dependency to your `pubspec.yaml`.
 
 </details>
 
@@ -201,6 +206,8 @@ Future<Position> _determinePosition() async {
 
 ### Geolocation
 
+#### Current location
+
 To query the current location of the device simply make a call to the `getCurrentPosition` method. You can finetune the results by specifying the following parameters:
 
 - `desiredAccuracy`: the accuracy of the location data that your app wants to receive;
@@ -212,28 +219,103 @@ import 'package:geolocator/geolocator.dart';
 Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
 ```
 
+#### Last known location
+
 To query the last known location retrieved stored on the device you can use the `getLastKnownPosition` method (note that this can result in a `null` value when no location details are available):
 
 ``` dart
 import 'package:geolocator/geolocator.dart';
 
-Position position = await Geolocator.getLastKnownPosition();
+Position? position = await Geolocator.getLastKnownPosition();
 ```
+
+#### Listen to location updates
 
 To listen for location changes you can call the `getPositionStream` to receive stream you can listen to and receive position updates. You can finetune the results by specifying the following parameters:
 
-- `desiredAccuracy`: the accuracy of the location data that your app wants to receive;
+- `accuracy`: the accuracy of the location data that your app wants to receive;
 - `distanceFilter`: the minimum distance (measured in meters) a device must move horizontally before an update event is generated;
-- `timeInterval`: (Android only) the minimum amount of time that needs to pass before an update event is generated;
 - `timeLimit`: the maximum amount of time allowed between location updates. When the time limit is passed a `TimeOutException` will be thrown and the stream will be cancelled. By default no limit is configured.
 
 ``` dart
 import 'package:geolocator/geolocator.dart';
 
-StreamSubscription<Position> positionStream = Geolocator.getPositionStream(locationOptions).listen(
-    (Position position) {
-        print(position == null ? 'Unknown' : position.latitude.toString() + ', ' + position.longitude.toString());
+final LocationSettings locationSettings = LocationSettings(
+  accuracy: LocationAccuracy.high,
+  distanceFilter: 100,
+);
+StreamSubscription<Position> positionStream = Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+    (Position? position) {
+        print(position == null ? 'Unknown' : '${position.latitude.toString()}, ${position.longitude.toString()}');
     });
+```
+
+In certain situation it is necessary to specify some platform specific settings. This can be accomplished using the platform specific `AndroidSettings` or `AppleSettings` classes. When using a platform specific class, the platform specific package must be imported as well. For example:
+
+```dart
+import 'package:geolocator/geolocator.dart';
+import 'package:geolocator_apple/geolocator_apple.dart';
+import 'package:geolocator_android/geolocator_android.dart';
+
+late LocationSettings locationSettings;
+
+if (defaultTargetPlatform == TargetPlatform.android) {
+  locationSettings = AndroidSettings(
+    accuracy: LocationAccuracy.high,
+    distanceFilter: 100,
+    forceLocationManager: true,
+    intervalDuration: const Duration(seconds: 10),
+    //(Optional) Set foreground notification config to keep the app alive 
+    //when going to the background
+    foregroundNotificationConfig: const ForegroundNotificationConfig(
+        notificationText:
+        "Example app will continue to receive your location even when you aren't using it",
+        notificationTitle: "Running in Background",
+        enableWakeLock: true,
+    )
+  );
+} else if (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS) {
+  locationSettings = AppleSettings(
+    accuracy: LocationAccuracy.high,
+    activityType: ActivityType.fitness,
+    distanceFilter: 100,
+    pauseLocationUpdatesAutomatically: true,
+    // Only set to true if our app will be started up in the background.
+    showBackgroundLocationIndicator: false,
+  );
+} else {
+    locationSettings = LocationSettings(
+    accuracy: LocationAccuracy.high,
+    distanceFilter: 100,
+  );
+}
+
+StreamSubscription<Position> positionStream = Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+    (Position? position) {
+        print(position == null ? 'Unknown' : '${position.latitude.toString()}, ${position.longitude.toString()}');
+    });
+```
+
+#### Location accuracy (Android and iOS 14+ only)
+
+To query if a user enabled Approximate location fetching or Precise location fetching, you can call the `Geolocator().getLocationAccuracy()` method. This will return a `Future<LocationAccuracyStatus>`, which when completed contains a `LocationAccuracyStatus.reduced` if the user has enabled Approximate location fetching or `LocationAccuracyStatus.precise` if the user has enabled Precise location fetching.
+When calling `getLocationAccuracy` before the user has given permission, the method will return `LocationAccuracyStatus.reduced` by default.
+On iOS 13 or below, the method `getLocationAccuracy` will always return `LocationAccuracyStatus.precise`, since that is the default value for iOS 13 and below.
+
+``` dart
+import 'package:geolocator/geolocator.dart';
+
+var accuracy = await Geolocator.getLocationAccuracy();
+```
+
+#### Location service information
+
+To check if location services are enabled you can call the `isLocationServiceEnabled` method:
+
+``` dart
+import 'package:geolocator/geolocator.dart';
+
+bool isLocationServiceEnabled  = await Geolocator.isLocationServiceEnabled();
 ```
 
 To listen for service status changes you can call the `getServiceStatusStream`. This will return a `Stream<ServiceStatus>` which can be listened to, to receive location service status updates.
@@ -247,28 +329,9 @@ StreamSubscription<ServiceStatus> serviceStatusStream = Geolocator.getServiceSta
     });
 ```
 
-**iOS 14+ only**
-To query if a user enabled Approximate location fetching or Precise location fetching, you can call the `Geolocator().getLocationAccuracy()` method. This will return a `Future<LocationAccuracyStatus>`, which when completed contains a `LocationAccuracyStatus.reduced` if the user has enabled Approximate location fetching or `LocationAccuracyStatus.precise` if the user has enabled Precise location fetching.
-When calling `getLocationAccuracy` before the user has given permission, the method will return `LocationAccuracyStatus.reduced` by default.
-On iOS 13 or below, the method `getLocationAccuracy` will always return `LocationAccuracyStatus.precise`, since that is the default value for iOS 13 and below.
-
-``` dart
-import 'package:geolocator/geolocator.dart';
-
-var accuracy = await Geolocator.getLocationAccuracy();
-```
-
-To check if location services are enabled you can call the `isLocationServiceEnabled` method:
-
-``` dart
-import 'package:geolocator/geolocator.dart';
-
-bool isLocationServiceEnabled  = await Geolocator.isLocationServiceEnabled();
-```
-
 ### Permissions
 
-The geolocator will automatically try to request permissions when you try to acquire a location through the `getCurrentPosition` or `getPositionStream` methods. We do however provide methods that will allow you to manually handle requesting permissions.
+When using the web platform, the `checkPermission` method will return the `LocationPermission.denied` status, when the browser doesn't support the JavaScript Permissions API. Nevertheless, the `getCurrentPosition` and `getPositionStream` methods can still be used on the web platform.
 
 If you want to check if the user already granted permissions to acquire the device's location you can make a call to the `checkPermission` method:
 
@@ -291,9 +354,11 @@ Possible results from the `checkPermission` and `requestPermission` methods are:
 Permission | Description
 -----------|------------
 denied | Permission to access the device's location is denied by the user. You are free to request permission again (this is also the initial permission state).
-deniedForever | Android only: Permission to access the device's location is denied forever. If requesting permission the permission dialog will NOT been shown until the user updates the permission in the App settings.
+deniedForever | Permission to access the device's location is permanently denied. When requesting permissions the permission dialog will not be shown until the user updates the permission in the App settings.
 whileInUse | Permission to access the device's location is allowed only while the App is in use.
 always | Permission to access the device's location is allowed even when the App is running in the background.
+
+> Note: Android can only return `whileInUse`, `always` or `denied` when checking permissions. Due to limitations on the Android OS it is not possible to determine if permissions are denied permanently when checking permissions. Using a workaround the geolocator is only able to do so as a result of the `requestPermission` method. More information can be found in our [wiki](https://github.com/Baseflow/flutter-geolocator/wiki/Breaking-changes-in-7.0.0#android-permission-update).
 
 ### Settings
 

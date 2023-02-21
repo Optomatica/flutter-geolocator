@@ -6,11 +6,11 @@ name: geolocator
 # events but only for the develop branch
 on:
   push:
-    branches: [ master, next ]
+    branches: [ main ]
     paths:
     - 'geolocator/**'
   pull_request:
-    branches: [ master, next ]
+    branches: [ main ]
     paths:
     - 'geolocator/**'
 
@@ -28,10 +28,10 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       
       # Make sure the stable version of Flutter is available
-      - uses: subosito/flutter-action@v1
+      - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
@@ -57,10 +57,10 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
           
       # Make sure the stable version of Flutter is available
-      - uses: subosito/flutter-action@v1
+      - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
@@ -87,7 +87,7 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       
       # Ensure correct JAVA version is installed.
       - uses: actions/setup-java@v1
@@ -95,7 +95,7 @@ jobs:
           java-version: '12.x'
       
       # Make sure the stable version of Flutter is available
-      - uses: subosito/flutter-action@v1
+      - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
@@ -122,10 +122,10 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       
       # Make sure the stable version of Flutter is available
-      - uses: subosito/flutter-action@v1
+      - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
@@ -152,10 +152,10 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       
       # Make sure the stable version of Flutter is available
-      - uses: subosito/flutter-action@v1
+      - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
@@ -186,10 +186,10 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       # Make sure the stable version of Flutter is available
-      - uses: subosito/flutter-action@v1
+      - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
@@ -203,6 +203,40 @@ jobs:
         run: flutter build web --release
         working-directory: ${{env.example-directory}}
 
+  build_windows:
+    name: Build Windows App
+
+    # The type of runner that the job will run on
+    runs-on: windows-2019
+
+    env:
+      source-directory: ./geolocator 
+      example-directory: ./geolocator/example
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+
+      # Make sure the stable version of Flutter is available
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      # Enable Windows Desktop support
+      - name: Enable Windows Desktop support
+        run: flutter config --enable-windows-desktop
+
+      # Download all Flutter packages
+      - name: Download dependencies
+        run: flutter pub get
+        working-directory: ${{env.source-directory}}
+
+      # Build Windows version of the example App
+      - name: Run Windows build
+        run: flutter build windows --release
+        working-directory: ${{env.example-directory}}
+
   tests:
     name: Unit-tests
     # The type of runner that the job will run on
@@ -214,10 +248,10 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       
       # Make sure the stable version of Flutter is available
-      - uses: subosito/flutter-action@v1
+      - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
